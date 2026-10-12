@@ -1,0 +1,81 @@
+# Precision Teaching: Algebra
+
+Timed algebra fact practice for Precision Teaching. Students pick a game from the menu, choose
+what to practice on the settings page, then answer as many problems as they can before time runs
+out. At the end they see **correct per minute**, **incorrect per minute**, and lists of the problems
+they got right, got wrong, and skipped.
+
+It's a static site: plain HTML, CSS and JavaScript, with no build step and no server code.
+KaTeX is served from `vendor/katex/`, so the page needs nothing from other websites.
+
+## Run it locally
+
+The page uses JavaScript modules, so it must be served over HTTP.
+Opening `index.html` straight from disk won't work.
+
+```sh
+python3 -m http.server 8000
+# then open http://localhost:8000
+```
+
+## Hosting
+
+- **GitHub Pages:** push the repo, then go to **Settings → Pages → Deploy from a branch → `main` / root**.
+- **Your own network:** copy the folder to any web server (nginx, Apache, IIS),
+  or run `python3 -m http.server 8000` on a machine students can reach.
+
+You can link students straight to a game's settings: `…/#/setup/single-step`, or straight into a
+round with the saved settings: `…/#/play/single-step`.
+
+## How it plays
+
+- **Settings** (shared by every game, and remembered by the browser between rounds, games and visits):
+  - **Fact families** 1–12. A problem from the 7s family is built from a fact with 7 in it
+    (7 + 5, 9 × 7, …); the other number can be anything from 1 to 12.
+  - **Add-ons** 13, 14 and 15, off by default. Unless one is checked, that number never appears in
+    any problem as either number of the fact. When checked, it is its own family and may also be the
+    other number in any family's facts.
+  - **Kinds of facts:** addition, subtraction, multiplication, division.
+  - **Timing:** 30 seconds, or 1, 2, 3 or 5 minutes.
+- **The round** waits on a "Ready?" screen until the student presses Enter, so the clock doesn't
+  start while they move to the keyboard.
+- **Answering:** type the value of x (`7` or `x = 7`) and press Enter. A right answer gets a big green
+  ✓; a wrong one gets a big red ✗ with the correct answer. The mark stays on screen under the next
+  problem, which appears at once.
+- **Skipping:** Enter on an empty box skips the problem. The results list each skipped problem and
+  its family.
+- **Rates:** correct ÷ minutes and incorrect ÷ minutes, over the full round length.
+- **Leaving early** (← Settings) throws the round away; there are no results for a partial round.
+
+## Single-Step Equations
+
+Addition and subtraction come from the addition facts 1 + 1 to 12 + 12; multiplication and division
+from the multiplication facts 1 × 1 to 12 × 12. From a fact a ∘ b = c:
+
+| Kind | Forms |
+|---|---|
+| Addition | x + a = c, a + x = c |
+| Subtraction | x − a = b, c − x = a |
+| Multiplication | ax = c |
+| Division | x/a = b, c/x = a |
+
+Answers are always whole numbers from 1 up. The same problem never comes twice in a row.
+
+## Adding a game
+
+Write `js/games/<id>.js` exporting `id`, `title`, `description`, `sample` (a TeX equation for the menu
+tile), and `makeProblem(settings, previous)`, which returns `{ tex, answer, family, op }`. Then add it
+to the list in `js/games.js`. The settings page, timer, marking and results work for every game.
+
+## Files
+
+```
+index.html               page shell
+css/style.css            all styling (light and dark themes, matching Order the Tiles)
+js/app.js                menu, settings page, round, results, routing
+js/settings.js           the shared settings and how they are saved
+js/games.js              the list of games on the menu
+js/games/single-step.js  problem maker for Single-Step Equations
+js/util.js               shared helpers (elements, KaTeX, storage, formatting)
+vendor/katex/            KaTeX 0.16.11 (MIT license)
+```
