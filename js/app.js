@@ -1,9 +1,9 @@
 // Screens and routing. URLs:
 //   #/               the menu
-//   #/setup/<game>   the game's settings: fact families, operations, timing
+//   #/setup/<game>   the game's settings: fact families, operations, answer format, timing
 //   #/play/<game>    a timed round (the results appear on the same page)
 import { GAMES, findGame } from './games.js';
-import { BASE, EXTRAS, OPS, TIMES, loadSettings, saveSettings, isPlayable } from './settings.js';
+import { BASE, EXTRAS, OPS, TIMES, FORMATS, loadSettings, saveSettings, isPlayable } from './settings.js';
 import { el, tex, formatTime, formatRate, formatMinutes } from './util.js';
 
 const SITE = 'Precision Teaching: Algebra';
@@ -42,8 +42,16 @@ function listFamilies(families) {
   return runs.map(([a, b]) => (a === b ? `${a}` : b === a + 1 ? `${a}, ${b}` : `${a}–${b}`)).join(', ');
 }
 
-function opSigns(ops) {
-  return OPS.filter(o => ops.includes(o.id)).map(o => o.sign).join(' ');
+const isChoice = (game, settings) => Boolean(game.multipleChoice) && settings.format === 'choice';
+
+// "1 minute · families 1–12 · + − × ÷", with only the parts that apply to this game.
+function describeSettings(game, settings) {
+  return [
+    formatMinutes(settings.minutes),
+    `families ${listFamilies(settings.families)}`,
+    game.usesOps && OPS.filter(o => settings.ops.includes(o.id)).map(o => o.sign).join(' '),
+    game.multipleChoice && FORMATS.find(f => f.id === settings.format).label.toLowerCase(),
+  ].filter(Boolean).join(' · ');
 }
 
 // ---------- Menu ----------
@@ -73,6 +81,14 @@ function showMenu() {
 
 // ---------- Settings ----------
 
+// A row of radio buttons styled as a segmented control.
+function segmented(name, options, current, onPick) {
+  return el('div', { class: `segmented cols-${options.length}` }, options.map(o => el('label', { class: 'seg' },
+    el('input', { type: 'radio', name, checked: o.value === current, onchange: () => onPick(o.value) }),
+    el('span', {}, o.label),
+  )));
+}
+
 function showSetup(game) {
   document.title = `${game.title} · ${SITE}`;
   const settings = loadSettings();
@@ -83,13 +99,13 @@ function showSetup(game) {
     saveSettings(settings);
     const missing = [
       !settings.families.length && 'a fact family',
-      !settings.ops.length && 'a kind of fact',
+      game.usesOps && !settings.ops.length && 'a kind of fact',
     ].filter(Boolean);
     warning.textContent = missing.length ? `Choose at least ${missing.join(' and ')} to start.` : '';
     start.classList.toggle('disabled', missing.length > 0);
     start.setAttribute('aria-disabled', String(missing.length > 0));
   }
-  start.addEventListener('click', e => { if (!isPlayable(settings)) e.preventDefault(); });
+  start.addEventListener('click', e => { if (!isPlayable(settings, game)) e.preventDefault(); });
 
   // Families: a checkbox chip per number.
   const familyBox = n => el('input', {
@@ -109,25 +125,34 @@ function showSetup(game) {
     changed();
   };
 
-  const opBoxes = OPS.map(op => el('label', { class: 'option' },
-    el('input', {
-      type: 'checkbox', checked: settings.ops.includes(op.id),
-      onchange: e => {
-        settings.ops = OPS.map(o => o.id).filter(id => id === op.id ? e.target.checked : settings.ops.includes(id));
-        changed();
-      },
-    }),
-    el('span', { class: 'option-label' }, op.label),
-    tex(op.sample, { class: 'option-sample' }),
-  ));
+  const opsPanel = game.usesOps && el('fieldset', { class: 'panel' },
+    el('legend', {}, 'Kinds of facts'),
+    el('div', { class: 'options' }, OPS.map(op => el('label', { class: 'option' },
+      el('input', {
+        type: 'checkbox', checked: settings.ops.includes(op.id),
+        onchange: e => {
+          settings.ops = OPS.map(o => o.id).filter(id => id === op.id ? e.target.checked : settings.ops.includes(id));
+          changed();
+        },
+      }),
+      el('span', { class: 'option-label' }, op.label),
+      tex(op.sample, { class: 'option-sample' }),
+    ))),
+    el('p', { class: 'note' }, 'Addition and subtraction come from the addition facts; multiplication and division from the multiplication facts.'),
+  );
 
-  const timeButtons = TIMES.map(minutes => el('label', { class: 'seg' },
-    el('input', {
-      type: 'radio', name: 'minutes', checked: settings.minutes === minutes,
-      onchange: () => { settings.minutes = minutes; changed(); },
-    }),
-    el('span', {}, minutes < 1 ? `${minutes * 60} s` : `${minutes} min`),
-  ));
+  const formatPanel = game.multipleChoice && el('fieldset', { class: 'panel' },
+    el('legend', {}, 'Answer format'),
+    segmented('format', FORMATS.map(f => ({ value: f.id, label: f.label })), settings.format,
+      format => { settings.format = format; changed(); }),
+    el('p', { class: 'note' }, 'Free response: type the answer. Multiple choice: click the right answer out of four.'),
+  );
+
+  const timingPanel = el('fieldset', { class: 'panel' },
+    el('legend', {}, 'Timing'),
+    segmented('minutes', TIMES.map(m => ({ value: m, label: m < 1 ? `${m * 60} s` : `${m} min` })), settings.minutes,
+      minutes => { settings.minutes = minutes; changed(); }),
+  );
 
   show(el('main', { class: 'screen setup' },
     el('header', { class: 'play-bar' },
@@ -148,17 +173,7 @@ function showSetup(game) {
         el('p', { class: 'note' }, 'Left unchecked, these numbers never appear in any problem.'),
         el('div', { class: 'chips extras' }, EXTRAS.map(chip)),
       ),
-      el('div', { class: 'setup-side' },
-        el('fieldset', { class: 'panel' },
-          el('legend', {}, 'Kinds of facts'),
-          el('div', { class: 'options' }, opBoxes),
-          el('p', { class: 'note' }, 'Addition and subtraction come from the addition facts; multiplication and division from the multiplication facts.'),
-        ),
-        el('fieldset', { class: 'panel' },
-          el('legend', {}, 'Timing'),
-          el('div', { class: 'segmented' }, timeButtons),
-        ),
-      ),
+      el('div', { class: 'setup-side' }, opsPanel, formatPanel, timingPanel),
     ),
     el('div', { class: 'setup-start' }, start, warning),
   ));
@@ -174,14 +189,21 @@ function parseAnswer(text) {
   return Number(cleaned);
 }
 
-function showPlay(game) {
+// Clicks on a fresh set of tiles sooner than this are taken as the tail of a
+// double-click on the last set, not a choice.
+const CHOICE_GUARD_MS = 200;
+
+async function showPlay(game) {
   const settings = loadSettings();
-  if (!isPlayable(settings)) { location.replace(`#/setup/${game.id}`); return; }
+  if (!isPlayable(settings, game)) { location.replace(`#/setup/${game.id}`); return; }
+  await game.load?.();
   document.title = `${game.title} · ${SITE}`;
 
+  const choice = isChoice(game, settings);
   const total = settings.minutes * 60000;
   const log = { correct: [], incorrect: [], skipped: [] };
   let problem = null;
+  let shownAt = 0;
   let state = 'ready'; // → 'running' → 'done'
   let endsAt = 0;
   let ticker = 0;
@@ -190,12 +212,19 @@ function showPlay(game) {
   const tally = el('span', { class: 'tally' });
   const feedback = el('div', { class: 'feedback', 'aria-live': 'polite' });
   const equation = el('div', { class: 'equation' });
+  const help = el('p', { class: 'instructions' });
+
+  // Free response: an answer box. Multiple choice: four tiles and a Skip button.
   const input = el('input', {
     class: 'answer', type: 'text', inputmode: 'numeric', autocomplete: 'off',
-    autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'next', 'aria-label': 'Your answer for x',
+    autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'next', 'aria-label': 'Your answer',
   });
-  const answerRow = el('div', { class: 'answer-row' }, tex('x ='), input);
-  const help = el('p', { class: 'instructions' });
+  const tiles = el('div', { class: 'choices', role: 'group', 'aria-label': 'Choices' });
+  const answerArea = choice
+    ? el('div', { class: 'choice-area' }, tiles,
+        el('button', { type: 'button', class: 'btn skip', onclick: () => answer(null) }, 'Skip'))
+    : el('div', { class: 'answer-row' }, game.answerLabel && tex(game.answerLabel), input);
+  const problemBox = el('div', { class: `problem${!choice && !game.answerLabel ? ' inline' : ''}` }, equation, answerArea);
 
   function updateTally() {
     tally.replaceChildren(
@@ -207,26 +236,38 @@ function showPlay(game) {
   function setReady() {
     equation.replaceChildren(el('div', { class: 'ready' },
       el('p', { class: 'ready-title' }, 'Ready?'),
-      el('p', {}, `${formatMinutes(settings.minutes)} · families ${listFamilies(settings.families)} · ${opSigns(settings.ops)}`),
+      el('p', {}, describeSettings(game, settings)),
       el('button', { type: 'button', class: 'btn primary big', onclick: begin }, 'Start'),
     ));
     help.textContent = 'Press Enter or Start when you’re ready.';
-    answerRow.hidden = true;
+    answerArea.hidden = true;
   }
 
   function nextProblem() {
     problem = game.makeProblem(settings, problem);
-    equation.replaceChildren(tex(problem.tex, { class: 'equation-math' }));
+    // "7 × 8 = ?" when the answer isn't typed on the same line.
+    const shown = choice && !game.answerLabel ? `${problem.tex} \\; ?` : problem.tex;
+    equation.replaceChildren(tex(shown, { class: 'equation-math' }));
+    if (choice) {
+      tiles.replaceChildren(...problem.choices.map(value => el('button', {
+        type: 'button', class: 'choice',
+        onclick: () => { if (performance.now() - shownAt >= CHOICE_GUARD_MS) answer(value); },
+      }, tex(String(value)))));
+    }
+    shownAt = performance.now();
   }
 
   function begin() {
     state = 'running';
-    answerRow.hidden = false;
-    help.textContent = 'Type the answer and press Enter. Press Enter on an empty box to skip.';
+    answerArea.hidden = false;
+    help.textContent = choice
+      ? 'Click the right answer, or Skip.'
+      : 'Type the answer and press Enter. Press Enter on an empty box to skip.';
     endsAt = performance.now() + total;
     ticker = setInterval(tick, 100);
     nextProblem();
-    input.focus();
+    if (!choice) input.focus();
+    else document.activeElement?.blur();
   }
 
   function tick() {
@@ -238,29 +279,31 @@ function showPlay(game) {
 
   function mark(kind, body) {
     // A fresh element each time, so the pop animation replays.
-    const symbol = { correct: '✓', incorrect: '✗', skipped: '—' }[kind];
+    // A skip gets a plain gray circle: no symbol, so it doesn't read as an error.
+    const symbol = { correct: '✓', incorrect: '✗', skipped: '' }[kind];
     feedback.replaceChildren(el('div', { class: `mark mark-${kind}` },
       el('span', { class: 'mark-symbol', 'aria-hidden': 'true' }, symbol),
       el('div', { class: 'mark-body' }, body),
     ));
   }
 
-  function submit() {
-    const raw = input.value;
-    input.value = '';
+  // `response` is the number given (a typed string or a chosen tile), or null for a skip.
+  function answer(response) {
+    if (state !== 'running') return;
     const shown = tex(problem.tex);
-    if (!raw.trim()) {
+    const right = tex(game.answerTex(problem), { class: 'mark-answer' });
+    if (response == null) {
       log.skipped.push({ ...problem });
-      mark('skipped', [el('span', { class: 'sr-only' }, 'Skipped: '), shown, el('span', { class: 'mark-note' }, 'skipped')]);
-    } else if (parseAnswer(raw) === problem.answer) {
+      // Show the whole fact with its answer, so the student can learn it.
+      mark('skipped', [el('span', { class: 'sr-only' }, 'Skipped: '), shown, right, el('span', { class: 'mark-note' }, 'skipped')]);
+    } else if ((choice ? response : parseAnswer(response)) === problem.answer) {
       log.correct.push({ ...problem });
-      mark('correct', [el('span', { class: 'sr-only' }, 'Correct: '), shown, tex(`x = ${problem.answer}`, { class: 'mark-answer' })]);
+      mark('correct', [el('span', { class: 'sr-only' }, 'Correct: '), shown, right]);
     } else {
-      log.incorrect.push({ ...problem, response: raw.trim() });
+      log.incorrect.push({ ...problem, response: String(response).trim() });
       mark('incorrect', [
-        el('span', { class: 'sr-only' }, 'Incorrect: '), shown,
-        tex(`x = ${problem.answer}`, { class: 'mark-answer' }),
-        el('span', { class: 'mark-note' }, 'you typed ', el('s', {}, raw.trim())),
+        el('span', { class: 'sr-only' }, 'Incorrect: '), shown, right,
+        el('span', { class: 'mark-note' }, choice ? 'you chose ' : 'you typed ', el('s', {}, String(response).trim())),
       ]);
     }
     updateTally();
@@ -270,7 +313,12 @@ function showPlay(game) {
   function onKey(e) {
     if (e.key !== 'Enter' || e.repeat) return;
     if (state === 'ready') { e.preventDefault(); begin(); }
-    else if (state === 'running' && e.target === input) { e.preventDefault(); submit(); }
+    else if (state === 'running' && e.target === input) {
+      e.preventDefault();
+      const raw = input.value;
+      input.value = '';
+      answer(raw.trim() ? raw : null);
+    }
   }
 
   function finish() {
@@ -289,9 +337,9 @@ function showPlay(game) {
       el('div', { class: 'stats' }, tally, clock),
     ),
     help,
-    // Clicking anywhere on the stage puts the cursor back in the answer box.
-    el('section', { class: 'stage', onclick: e => { if (state === 'running' && e.target !== input) input.focus(); } },
-      el('div', { class: 'problem' }, equation, answerRow),
+    // In free response, clicking anywhere on the stage puts the cursor back in the answer box.
+    el('section', { class: 'stage', onclick: e => { if (state === 'running' && !choice && e.target !== input) input.focus(); } },
+      problemBox,
       feedback,
     ),
   ));
@@ -314,12 +362,13 @@ function showResults(game, settings, log) {
       ? el('ol', {}, items.map(p => el('li', {}, tex(p.tex), el('span', { class: 'detail' }, describe(p)))))
       : el('p', { class: 'note' }, 'None'),
   );
+  const verb = isChoice(game, settings) ? 'you chose ' : 'you typed ';
 
   const heading = el('h1', { tabindex: '-1' }, 'Time!');
   show(el('main', { class: 'screen results' },
     el('header', { class: 'results-head' },
       heading,
-      el('p', { class: 'lede' }, `${game.title} · ${formatMinutes(settings.minutes)} · families ${listFamilies(settings.families)} · ${opSigns(settings.ops)}`),
+      el('p', { class: 'lede' }, `${game.title} · ${describeSettings(game, settings)}`),
     ),
     el('div', { class: 'win-stats' },
       stat(perMinute(log.correct.length), 'correct per minute', 'correct'),
@@ -332,12 +381,12 @@ function showResults(game, settings, log) {
       el('a', { class: 'btn', href: '#/' }, 'Menu'),
     ),
     el('div', { class: 'result-lists' },
-      list('Correct', 'correct', log.correct, p => tex(`x = ${p.answer}`)),
+      list('Correct', 'correct', log.correct, p => tex(game.answerTex(p))),
       list('Incorrect', 'incorrect', log.incorrect, p => [
-        tex(`x = ${p.answer}`), el('span', { class: 'mark-note' }, 'you typed ', el('s', {}, p.response)),
+        tex(game.answerTex(p)), el('span', { class: 'mark-note' }, verb, el('s', {}, p.response)),
       ]),
       list('Skipped', 'skipped', log.skipped, p => [
-        tex(`x = ${p.answer}`), el('span', { class: 'mark-note' }, `${p.family}s family`),
+        tex(game.answerTex(p)), el('span', { class: 'mark-note' }, `${p.family}s family`),
       ]),
     ),
   ));
@@ -347,13 +396,13 @@ function showResults(game, settings, log) {
 
 // ---------- Routing ----------
 
-function route() {
+async function route() {
   const [, screen, id] = location.hash.match(/^#\/(setup|play)\/(.+)$/) ?? [];
   try {
     const game = screen && findGame(decodeURIComponent(id));
     if (screen && !game) throw new Error(`There is no game called "${decodeURIComponent(id)}".`);
     if (screen === 'setup') showSetup(game);
-    else if (screen === 'play') showPlay(game);
+    else if (screen === 'play') await showPlay(game);
     else showMenu();
   } catch (err) {
     showError(err);

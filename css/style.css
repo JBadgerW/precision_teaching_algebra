@@ -179,9 +179,10 @@ h1:focus { outline: none; }
 .option-sample { color: var(--ink-soft); }
 
 .segmented {
-  display: grid; grid-template-columns: repeat(5, 1fr); padding: 4px; gap: 4px;
+  display: grid; grid-template-columns: repeat(var(--cols, 5), 1fr); padding: 4px; gap: 4px;
   background: var(--surface-2); border-radius: 999px;
 }
+.segmented.cols-2 { --cols: 2; }
 .seg { position: relative; cursor: pointer; }
 .seg span {
   display: grid; place-items: center; min-height: 40px; padding: 0 4px; white-space: nowrap;
@@ -221,6 +222,25 @@ h1:focus { outline: none; }
 }
 .answer:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
 
+/* Free response with the box on the problem's line: "7 × 8 = [  ]" */
+.problem.inline { flex-direction: row; flex-wrap: wrap; gap: 16px 20px; }
+.problem.inline .answer-row { font-size: clamp(2rem, 8vw, 3.2rem); }
+.problem.inline .answer { width: 4ch; }
+
+/* Multiple choice: four tiles in a 2 × 2 grid, Skip centered underneath */
+.choice-area { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
+.choices { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: min(100%, 440px); }
+.choice {
+  display: grid; place-items: center; min-height: 92px;
+  border: 2px solid var(--line); border-radius: 16px; background: var(--bg); color: var(--ink);
+  font-size: clamp(1.8rem, 7vw, 2.4rem); cursor: pointer; box-shadow: var(--shadow);
+  transition: border-color .12s ease, transform .08s ease, background .12s ease;
+  touch-action: manipulation;
+}
+.choice:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.choice:active { transform: scale(.97); }
+.btn.skip { min-width: 140px; }
+
 /* The mark for the last answer stays up until the next one. */
 .feedback { width: min(100%, 640px); min-height: 104px; }
 .mark {
@@ -242,7 +262,7 @@ h1:focus { outline: none; }
 .mark-incorrect .mark-symbol { background: var(--wrong); }
 .mark-incorrect .mark-answer { color: var(--wrong); font-size: 1.25em; }
 .mark-skipped { background: var(--surface-2); }
-.mark-skipped .mark-symbol { width: 48px; height: 48px; font-size: 1.6rem; background: var(--ink-soft); }
+.mark-skipped .mark-symbol { background: var(--ink-soft); opacity: .45; }
 @keyframes pop { from { transform: scale(.9); opacity: .2; } }
 
 /* ---------- Results ---------- */

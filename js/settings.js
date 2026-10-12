@@ -1,7 +1,7 @@
 // The settings every game shares: fact families, operations, and round length.
 // They are saved in the browser, so they carry over between rounds, between
 // games, and between visits.
-import { store } from './util.js';
+import { store, pick } from './util.js';
 
 const KEY = 'pt-algebra:settings';
 
@@ -19,7 +19,13 @@ export const OPS = [
 
 export const TIMES = [0.5, 1, 2, 3, 5]; // minutes
 
-const DEFAULTS = { families: BASE, ops: OPS.map(o => o.id), minutes: 1 };
+// How students answer, in games that offer a choice.
+export const FORMATS = [
+  { id: 'type', label: 'Free response' },
+  { id: 'choice', label: 'Multiple choice' },
+];
+
+const DEFAULTS = { families: BASE, ops: OPS.map(o => o.id), minutes: 1, format: 'type' };
 
 export function loadSettings() {
   const saved = store.getJSON(KEY, {});
@@ -30,7 +36,8 @@ export function loadSettings() {
     ? OPS.map(o => o.id).filter(id => saved.ops.includes(id))
     : DEFAULTS.ops;
   const minutes = TIMES.includes(saved.minutes) ? saved.minutes : DEFAULTS.minutes;
-  return { families, ops, minutes };
+  const format = FORMATS.some(f => f.id === saved.format) ? saved.format : DEFAULTS.format;
+  return { families, ops, minutes, format };
 }
 
 export function saveSettings(settings) {
@@ -41,4 +48,15 @@ export function saveSettings(settings) {
 export const factNumbers = settings =>
   [...BASE, ...EXTRAS.filter(n => settings.families.includes(n))];
 
-export const isPlayable = settings => settings.families.length > 0 && settings.ops.length > 0;
+// Kinds of facts only matter to games that use them (game.usesOps).
+export const isPlayable = (settings, game) =>
+  settings.families.length > 0 && (!game.usesOps || settings.ops.length > 0);
+
+// A fact from one of the chosen families: the family number and a partner from
+// the allowed numbers, in either order.
+export function pickFact(settings) {
+  const family = pick(settings.families);
+  const partner = pick(factNumbers(settings));
+  const [a, b] = Math.random() < 0.5 ? [family, partner] : [partner, family];
+  return { a, b, family };
+}
