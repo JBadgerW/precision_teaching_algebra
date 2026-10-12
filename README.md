@@ -67,6 +67,20 @@ Write `js/games/<id>.js` exporting `id`, `title`, `description`, `sample` (a TeX
 tile), and `makeProblem(settings, previous)`, which returns `{ tex, answer, family, op }`. Then add it
 to the list in `js/games.js`. The settings page, timer, marking and results work for every game.
 
+## Multiple-choice data
+
+`data/multiplication_distractors.json` holds every multiplication fact from 1 × 1 to 15 × 15 with its
+answer and three likely wrong answers, for future multiple-choice games:
+
+```json
+{"a": 3, "b": 4, "answer": 12, "distractors": [9, 15, 16]}
+```
+
+Each fact appears once with `a ≤ b`; for 4 × 3, look up 3 × 4. The file is generated from
+`multiplication_distractors.txt` (tab-separated, as exported from a spreadsheet). After editing the
+text file, rebuild it with `python3 tools/distractors_to_json.py`, which also checks every answer and
+refuses to write if a distractor matches the answer or a fact is listed twice.
+
 ## Files
 
 ```
@@ -78,4 +92,6 @@ js/games.js              the list of games on the menu
 js/games/single-step.js  problem maker for Single-Step Equations
 js/util.js               shared helpers (elements, KaTeX, storage, formatting)
 vendor/katex/            KaTeX 0.16.11 (MIT license)
+data/                    multiplication_distractors.json (for multiple choice)
+tools/                   distractors_to_json.py
 ```
