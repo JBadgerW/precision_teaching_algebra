@@ -8,6 +8,7 @@ export const title = 'Single-Step Equations';
 export const description = 'Solve for x in one step: add, subtract, multiply or divide.';
 export const sample = 'x + 5 = 12';
 export const usesOps = true;
+export const opsNote = 'Addition and subtraction come from the addition facts; multiplication and division from the multiplication facts.';
 export const answerLabel = 'x =';
 export const answerTex = p => `x = ${p.answer}`;
 

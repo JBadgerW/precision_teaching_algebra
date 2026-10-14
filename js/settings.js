@@ -1,4 +1,4 @@
-// The settings every game shares: fact families, operations, and round length.
+// The settings every game shares: fact families, operations, answer options, and round length.
 // They are saved in the browser, so they carry over between rounds, between
 // games, and between visits.
 import { store, pick } from './util.js';
@@ -25,7 +25,13 @@ export const FORMATS = [
   { id: 'choice', label: 'Multiple choice' },
 ];
 
-const DEFAULTS = { families: BASE, ops: OPS.map(o => o.id), minutes: 1, format: 'type' };
+// On/off options that only some games show (game.options lists their ids).
+export const TOGGLES = [
+  { id: 'negatives', label: 'Allow negative answers', short: 'negative answers', sample: '\\frac{3}{7} - \\frac{5}{7} = -\\frac{2}{7}' },
+  { id: 'reduce', label: 'Require reduction', short: 'reduced answers', sample: '\\frac{6}{8} \\to \\frac{3}{4}' },
+];
+
+const DEFAULTS = { families: BASE, ops: OPS.map(o => o.id), minutes: 1, format: 'type', negatives: false, reduce: false };
 
 export function loadSettings() {
   const saved = store.getJSON(KEY, {});
@@ -37,7 +43,9 @@ export function loadSettings() {
     : DEFAULTS.ops;
   const minutes = TIMES.includes(saved.minutes) ? saved.minutes : DEFAULTS.minutes;
   const format = FORMATS.some(f => f.id === saved.format) ? saved.format : DEFAULTS.format;
-  return { families, ops, minutes, format };
+  const toggles = Object.fromEntries(TOGGLES.map(t =>
+    [t.id, typeof saved[t.id] === 'boolean' ? saved[t.id] : DEFAULTS[t.id]]));
+  return { families, ops, minutes, format, ...toggles };
 }
 
 export function saveSettings(settings) {
@@ -48,9 +56,13 @@ export function saveSettings(settings) {
 export const factNumbers = settings =>
   [...BASE, ...EXTRAS.filter(n => settings.families.includes(n))];
 
+// The kinds of facts a game offers: all of them, unless the game lists its own.
+export const gameOps = game => game.ops ?? OPS;
+
 // Kinds of facts only matter to games that use them (game.usesOps).
 export const isPlayable = (settings, game) =>
-  settings.families.length > 0 && (!game.usesOps || settings.ops.length > 0);
+  settings.families.length > 0 &&
+  (!game.usesOps || gameOps(game).some(o => settings.ops.includes(o.id)));
 
 // A fact from one of the chosen families: the family number and a partner from
 // the allowed numbers, in either order.

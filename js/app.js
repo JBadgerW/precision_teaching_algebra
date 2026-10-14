@@ -1,9 +1,9 @@
 // Screens and routing. URLs:
 //   #/               the menu
-//   #/setup/<game>   the game's settings: fact families, operations, answer format, timing
+//   #/setup/<game>   the game's settings: fact families, operations, answers, timing
 //   #/play/<game>    a timed round (the results appear on the same page)
 import { GAMES, findGame } from './games.js';
-import { BASE, EXTRAS, OPS, TIMES, FORMATS, loadSettings, saveSettings, isPlayable } from './settings.js';
+import { BASE, EXTRAS, OPS, TIMES, FORMATS, TOGGLES, loadSettings, saveSettings, isPlayable, gameOps } from './settings.js';
 import { el, tex, formatTime, formatRate, formatMinutes } from './util.js';
 
 const SITE = 'Precision Teaching: Algebra';
@@ -44,13 +44,17 @@ function listFamilies(families) {
 
 const isChoice = (game, settings) => Boolean(game.multipleChoice) && settings.format === 'choice';
 
+// The on/off settings this game shows.
+const gameToggles = game => TOGGLES.filter(t => game.options?.includes(t.id));
+
 // "1 minute · families 1–12 · + − × ÷", with only the parts that apply to this game.
 function describeSettings(game, settings) {
   return [
     formatMinutes(settings.minutes),
     `families ${listFamilies(settings.families)}`,
-    game.usesOps && OPS.filter(o => settings.ops.includes(o.id)).map(o => o.sign).join(' '),
+    game.usesOps && gameOps(game).filter(o => settings.ops.includes(o.id)).map(o => o.sign).join(' '),
     game.multipleChoice && FORMATS.find(f => f.id === settings.format).label.toLowerCase(),
+    ...gameToggles(game).filter(t => settings[t.id]).map(t => t.short),
   ].filter(Boolean).join(' · ');
 }
 
@@ -99,7 +103,7 @@ function showSetup(game) {
     saveSettings(settings);
     const missing = [
       !settings.families.length && 'a fact family',
-      game.usesOps && !settings.ops.length && 'a kind of fact',
+      game.usesOps && !gameOps(game).some(o => settings.ops.includes(o.id)) && 'a kind of fact',
     ].filter(Boolean);
     warning.textContent = missing.length ? `Choose at least ${missing.join(' and ')} to start.` : '';
     start.classList.toggle('disabled', missing.length > 0);
@@ -127,7 +131,7 @@ function showSetup(game) {
 
   const opsPanel = game.usesOps && el('fieldset', { class: 'panel' },
     el('legend', {}, 'Kinds of facts'),
-    el('div', { class: 'options' }, OPS.map(op => el('label', { class: 'option' },
+    el('div', { class: 'options' }, gameOps(game).map(op => el('label', { class: 'option' },
       el('input', {
         type: 'checkbox', checked: settings.ops.includes(op.id),
         onchange: e => {
@@ -138,7 +142,19 @@ function showSetup(game) {
       el('span', { class: 'option-label' }, op.label),
       tex(op.sample, { class: 'option-sample' }),
     ))),
-    el('p', { class: 'note' }, 'Addition and subtraction come from the addition facts; multiplication and division from the multiplication facts.'),
+    game.opsNote && el('p', { class: 'note' }, game.opsNote),
+  );
+
+  const togglesPanel = game.options && el('fieldset', { class: 'panel' },
+    el('legend', {}, 'Answers'),
+    el('div', { class: 'options' }, gameToggles(game).map(t => el('label', { class: 'option' },
+      el('input', {
+        type: 'checkbox', checked: settings[t.id],
+        onchange: e => { settings[t.id] = e.target.checked; changed(); },
+      }),
+      el('span', { class: 'option-label' }, t.label),
+      tex(t.sample, { class: 'option-sample' }),
+    ))),
   );
 
   const formatPanel = game.multipleChoice && el('fieldset', { class: 'panel' },
@@ -173,7 +189,7 @@ function showSetup(game) {
         el('p', { class: 'note' }, 'Left unchecked, these numbers never appear in any problem.'),
         el('div', { class: 'chips extras' }, EXTRAS.map(chip)),
       ),
-      el('div', { class: 'setup-side' }, opsPanel, formatPanel, timingPanel),
+      el('div', { class: 'setup-side' }, opsPanel, togglesPanel, formatPanel, timingPanel),
     ),
     el('div', { class: 'setup-start' }, start, warning),
   ));
@@ -200,6 +216,7 @@ async function showPlay(game) {
   document.title = `${game.title} · ${SITE}`;
 
   const choice = isChoice(game, settings);
+  const fraction = game.answerInput === 'fraction';
   const total = settings.minutes * 60000;
   const log = { correct: [], incorrect: [], skipped: [] };
   let problem = null;
@@ -214,16 +231,34 @@ async function showPlay(game) {
   const equation = el('div', { class: 'equation' });
   const help = el('p', { class: 'instructions' });
 
-  // Free response: an answer box. Multiple choice: four tiles and a Skip button.
-  const input = el('input', {
-    class: 'answer', type: 'text', inputmode: 'numeric', autocomplete: 'off',
-    autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'next', 'aria-label': 'Your answer',
+  // Free response: an answer box, or a numerator box over a denominator box.
+  // Multiple choice: four tiles and a Skip button.
+  const textBox = (cls, label, inputmode = 'numeric') => el('input', {
+    class: cls, type: 'text', inputmode, autocomplete: 'off',
+    autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'next', 'aria-label': label,
   });
+  const fields = fraction
+    ? [textBox('frac-field', 'Numerator', settings.negatives ? 'text' : 'numeric'), textBox('frac-field', 'Denominator')]
+    : [textBox('answer', 'Your answer')];
+  const input = fields[0];
+  // Each fraction box is as wide as what's typed in it, so it reads like typeset math.
+  const fitField = f => { f.style.width = `${Math.max(1, f.value.length) + 0.25}ch`; };
+  if (fraction) {
+    fields.forEach((f, i) => {
+      fitField(f);
+      f.addEventListener('input', () => fitField(f));
+      // Tab or "/" jumps between the numerator and the denominator.
+      f.addEventListener('keydown', e => {
+        if (e.key === 'Tab' || e.key === '/') { e.preventDefault(); fields[1 - i].focus(); }
+      });
+    });
+  }
   const tiles = el('div', { class: 'choices', role: 'group', 'aria-label': 'Choices' });
   const answerArea = choice
     ? el('div', { class: 'choice-area' }, tiles,
         el('button', { type: 'button', class: 'btn skip', onclick: () => answer(null) }, 'Skip'))
-    : el('div', { class: 'answer-row' }, game.answerLabel && tex(game.answerLabel), input);
+    : el('div', { class: 'answer-row' }, game.answerLabel && tex(game.answerLabel),
+        fraction ? el('span', { class: 'frac-answer' }, fields[0], el('span', { class: 'frac-bar' }), fields[1]) : input);
   const problemBox = el('div', { class: `problem${!choice && !game.answerLabel ? ' inline' : ''}` }, equation, answerArea);
 
   function updateTally() {
@@ -260,8 +295,8 @@ async function showPlay(game) {
   function begin() {
     state = 'running';
     answerArea.hidden = false;
-    help.textContent = choice
-      ? 'Click the right answer, or Skip.'
+    help.textContent = choice ? 'Click the right answer, or Skip.'
+      : fraction ? 'Type the numerator, press Tab or / for the denominator, then press Enter. Press Enter with nothing typed to skip.'
       : 'Type the answer and press Enter. Press Enter on an empty box to skip.';
     endsAt = performance.now() + total;
     ticker = setInterval(tick, 100);
@@ -287,7 +322,8 @@ async function showPlay(game) {
     ));
   }
 
-  // `response` is the number given (a typed string or a chosen tile), or null for a skip.
+  // `response` is the number given (a typed string or a chosen tile), the typed
+  // { num, den } of a fraction, or null for a skip.
   function answer(response) {
     if (state !== 'running') return;
     const shown = tex(problem.tex);
@@ -296,14 +332,17 @@ async function showPlay(game) {
       log.skipped.push({ ...problem });
       // Show the whole fact with its answer, so the student can learn it.
       mark('skipped', [el('span', { class: 'sr-only' }, 'Skipped: '), shown, right, el('span', { class: 'mark-note' }, 'skipped')]);
-    } else if ((choice ? response : parseAnswer(response)) === problem.answer) {
+    } else if (game.isCorrect
+      ? game.isCorrect(problem, response, settings)
+      : (choice ? response : parseAnswer(response)) === problem.answer) {
       log.correct.push({ ...problem });
       mark('correct', [el('span', { class: 'sr-only' }, 'Correct: '), shown, right]);
     } else {
-      log.incorrect.push({ ...problem, response: String(response).trim() });
+      const given = game.responseText ? game.responseText(response) : String(response).trim();
+      log.incorrect.push({ ...problem, response: given });
       mark('incorrect', [
         el('span', { class: 'sr-only' }, 'Incorrect: '), shown, right,
-        el('span', { class: 'mark-note' }, choice ? 'you chose ' : 'you typed ', el('s', {}, String(response).trim())),
+        el('span', { class: 'mark-note' }, choice ? 'you chose ' : 'you typed ', el('s', {}, given)),
       ]);
     }
     updateTally();
@@ -313,11 +352,13 @@ async function showPlay(game) {
   function onKey(e) {
     if (e.key !== 'Enter' || e.repeat) return;
     if (state === 'ready') { e.preventDefault(); begin(); }
-    else if (state === 'running' && e.target === input) {
+    else if (state === 'running' && fields.includes(e.target)) {
       e.preventDefault();
-      const raw = input.value;
-      input.value = '';
-      answer(raw.trim() ? raw : null);
+      const raw = fraction ? { num: fields[0].value, den: fields[1].value } : input.value;
+      const blank = fields.every(f => !f.value.trim());
+      fields.forEach(f => { f.value = ''; if (fraction) fitField(f); });
+      input.focus();
+      answer(blank ? null : raw);
     }
   }
 
@@ -337,8 +378,8 @@ async function showPlay(game) {
       el('div', { class: 'stats' }, tally, clock),
     ),
     help,
-    // In free response, clicking anywhere on the stage puts the cursor back in the answer box.
-    el('section', { class: 'stage', onclick: e => { if (state === 'running' && !choice && e.target !== input) input.focus(); } },
+    // In free response, clicking anywhere on the stage puts the cursor back in the (first) answer box.
+    el('section', { class: 'stage', onclick: e => { if (state === 'running' && !choice && !fields.includes(e.target)) input.focus(); } },
       problemBox,
       feedback,
     ),
@@ -359,7 +400,8 @@ function showResults(game, settings, log) {
   const list = (title, kind, items, describe) => el('section', { class: `result-list list-${kind}` },
     el('h2', {}, `${title} `, el('span', { class: 'count' }, String(items.length))),
     items.length
-      ? el('ol', {}, items.map(p => el('li', {}, tex(p.tex), el('span', { class: 'detail' }, describe(p)))))
+      ? el('ol', {}, items.map(p => el('li', {},
+          el('div', { class: 'result-item' }, tex(p.tex), el('span', { class: 'detail' }, describe(p))))))
       : el('p', { class: 'note' }, 'None'),
   );
   const verb = isChoice(game, settings) ? 'you chose ' : 'you typed ';

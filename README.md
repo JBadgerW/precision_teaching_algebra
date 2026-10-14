@@ -26,7 +26,8 @@ python3 -m http.server 8000
   or run `python3 -m http.server 8000` on a machine students can reach.
 
 You can link students straight to a game's settings: `…/#/setup/single-step`, or straight into a
-round with the saved settings: `…/#/play/single-step`. The games are `single-step` and `multiplication`.
+round with the saved settings: `…/#/play/single-step`. The games are `single-step`, `multiplication`
+and `fractions-easy`.
 
 ## How it plays
 
@@ -36,7 +37,10 @@ round with the saved settings: `…/#/play/single-step`. The games are `single-s
   - **Add-ons** 13, 14 and 15, off by default. Unless one is checked, that number never appears in
     any problem as either number of the fact. When checked, it is its own family and may also be the
     other number in any family's facts.
-  - **Kinds of facts:** addition, subtraction, multiplication, division (Single-Step Equations only).
+  - **Kinds of facts:** addition, subtraction, multiplication, division (Single-Step Equations);
+    addition and subtraction (Add and Subtract Fractions).
+  - **Answers:** allow negative answers and require reduction, both off by default
+    (Add and Subtract Fractions only).
   - **Answer format:** free response or multiple choice (Multiplication Facts only).
   - **Timing:** 30 seconds, or 1, 2, 3 or 5 minutes.
 - **The round** waits on a "Ready?" screen until the student presses Enter, so the clock doesn't
@@ -72,6 +76,21 @@ Each problem is a × b = ?, from the multiplication facts. In free response the 
 same line as the fact. In multiple choice the wrong tiles come from
 `data/multiplication_distractors.json` (see below).
 
+## Add and Subtract Fractions—Easy
+
+Each problem is a/d + b/d or a/d − b/d. The numerators a and b are a fact from the chosen families,
+as in the other games. The shared denominator d is any allowed number from 2 to 12, plus any add-on
+that is checked. Unless negative answers are allowed, a subtraction always puts the larger numerator
+first, so its answer is 0 or more.
+
+The answer is typed as a fraction, in the same font as the problem and with no visible boxes: type
+the numerator, press **Tab** or **/** to move to the denominator, and press **Tab** or **/** again to go
+back. **Enter** checks the answer at any time; Enter with nothing typed in either box skips the problem.
+Any fraction equal to the answer is right (6/8 or 3/4), and a whole number can be typed with the
+denominator left empty. With **Require reduction** on, only the fully reduced form is right (3/4, and
+3 rather than 9/3). Marks and results show the answer over the shared denominator, then reduced
+when it can be: 6/8 = 3/4.
+
 ## Adding a game
 
 Write `js/games/<id>.js` and add it to the list in `js/games.js`; the comment at the top of
@@ -103,6 +122,7 @@ js/settings.js           the shared settings and how they are saved
 js/games.js              the list of games on the menu
 js/games/single-step.js  problem maker for Single-Step Equations
 js/games/multiplication.js  problem maker for Multiplication Facts
+js/games/fractions-easy.js  problem maker and answer checker for Add and Subtract Fractions—Easy
 js/util.js               shared helpers (elements, KaTeX, storage, formatting)
 vendor/katex/            KaTeX 0.16.11 (MIT license)
 data/                    multiplication_distractors.json (for multiple choice)

@@ -227,6 +227,19 @@ h1:focus { outline: none; }
 .problem.inline .answer-row { font-size: clamp(2rem, 8vw, 3.2rem); }
 .problem.inline .answer { width: 4ch; }
 
+/* Fraction answer: a numerator box over a denominator box, with no visible boxes,
+   in KaTeX's font at the size of the typeset fractions beside it (.katex is 1.15em). */
+.frac-answer {
+  display: inline-grid; justify-items: center; min-width: 1.4ch; padding: 0 .12em;
+  font: 400 calc(clamp(2.4rem, 9vw, 3.8rem) * 1.15)/1.15 KaTeX_Main, "Times New Roman", serif;
+}
+.frac-field {
+  padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink);
+  font: inherit; text-align: center; caret-color: var(--accent);
+}
+.frac-field:focus { outline: none; }
+.frac-bar { justify-self: stretch; height: max(2px, .04em); margin: .145em 0 .015em; background: currentColor; }
+
 /* Multiple choice: four tiles in a 2 × 2 grid, Skip centered underneath */
 .choice-area { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
 .choices { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: min(100%, 440px); }
@@ -296,7 +309,9 @@ h1:focus { outline: none; }
 .result-list li { padding: 6px 0; border-top: 1px solid var(--line); }
 .result-list li:first-child { border-top: 0; }
 .result-list li::marker { color: var(--ink-soft); font-size: .85rem; }
-.result-list .detail { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-left: 14px; color: var(--ink-soft); }
+/* A flex row, so a wrapped line of stacked fractions can't overlap the line above. */
+.result-item { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.result-list .detail { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; color: var(--ink-soft); }
 .list-incorrect .detail > .math { color: var(--wrong); font-weight: 700; }
 
 .error { max-width: 640px; }
