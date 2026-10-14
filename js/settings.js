@@ -59,10 +59,16 @@ export const factNumbers = settings =>
 // The kinds of facts a game offers: all of them, unless the game lists its own.
 export const gameOps = game => game.ops ?? OPS;
 
-// Kinds of facts only matter to games that use them (game.usesOps).
-export const isPlayable = (settings, game) =>
-  settings.families.length > 0 &&
-  (!game.usesOps || gameOps(game).some(o => settings.ops.includes(o.id)));
+// What still has to be chosen before a round can start, as in "Choose at least
+// a fact family". Kinds of facts only matter to games that use them (game.usesOps);
+// a game may add its own need (game.needs).
+export const missingChoices = (settings, game) => [
+  !settings.families.length && 'a fact family',
+  game.usesOps && !gameOps(game).some(o => settings.ops.includes(o.id)) && 'a kind of fact',
+  settings.families.length > 0 && game.needs?.(settings),
+].filter(Boolean);
+
+export const isPlayable = (settings, game) => missingChoices(settings, game).length === 0;
 
 // A fact from one of the chosen families: the family number and a partner from
 // the allowed numbers, in either order.

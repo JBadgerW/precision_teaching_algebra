@@ -13,6 +13,8 @@
 //   multipleChoice           true if the game offers multiple choice (problems
 //                            then carry `choices` when settings.format is 'choice')
 //   load()                   async; fetches any data before a round
+//   needs(settings)          what else must be chosen to play ("two fact families
+//                            from 2 up"), or null
 //   answerInput              'fraction' for a numerator box over a denominator box;
 //                            the response is then { num, den }
 //   isCorrect(problem, response, settings)  instead of comparing to problem.answer
@@ -20,7 +22,9 @@
 import * as singleStep from './games/single-step.js';
 import * as multiplication from './games/multiplication.js';
 import * as fractionsEasy from './games/fractions-easy.js';
+import * as fractionsHard from './games/fractions-hard.js';
+import * as fractionsMulDiv from './games/fractions-muldiv.js';
 
-export const GAMES = [singleStep, multiplication, fractionsEasy];
+export const GAMES = [singleStep, multiplication, fractionsEasy, fractionsHard, fractionsMulDiv];
 
 export const findGame = id => GAMES.find(g => g.id === id);

@@ -3,7 +3,7 @@
 //   #/setup/<game>   the game's settings: fact families, operations, answers, timing
 //   #/play/<game>    a timed round (the results appear on the same page)
 import { GAMES, findGame } from './games.js';
-import { BASE, EXTRAS, OPS, TIMES, FORMATS, TOGGLES, loadSettings, saveSettings, isPlayable, gameOps } from './settings.js';
+import { BASE, EXTRAS, OPS, TIMES, FORMATS, TOGGLES, loadSettings, saveSettings, isPlayable, gameOps, missingChoices } from './settings.js';
 import { el, tex, formatTime, formatRate, formatMinutes } from './util.js';
 
 const SITE = 'Precision Teaching: Algebra';
@@ -101,10 +101,7 @@ function showSetup(game) {
 
   function changed() {
     saveSettings(settings);
-    const missing = [
-      !settings.families.length && 'a fact family',
-      game.usesOps && !gameOps(game).some(o => settings.ops.includes(o.id)) && 'a kind of fact',
-    ].filter(Boolean);
+    const missing = missingChoices(settings, game);
     warning.textContent = missing.length ? `Choose at least ${missing.join(' and ')} to start.` : '';
     start.classList.toggle('disabled', missing.length > 0);
     start.setAttribute('aria-disabled', String(missing.length > 0));
