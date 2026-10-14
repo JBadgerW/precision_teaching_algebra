@@ -75,7 +75,7 @@ function showMenu() {
   show(el('main', { class: 'screen menu' },
     el('header', { class: 'menu-head' },
       el('div', {},
-        el('h1', {}, 'Algebra Facts'),
+        el('h1', {}, 'Math Sprints and Algebra'),
         el('p', { class: 'lede' }, 'Pick a game. Answer as many problems as you can before time runs out.'),
       ),
     ),
